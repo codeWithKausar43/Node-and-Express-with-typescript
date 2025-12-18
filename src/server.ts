@@ -46,16 +46,69 @@ const initDB = async() => {
       `)
 }
 
+
 initDB()
+ 
+// users CRUD
+app.post("/users", async (req: Request, res: Response)=>{
+const {name, email, age, number} = req.body; 
 
-
-app.post("/", (req: Request, res: Response)=>{
-  console.log(req.body);
-  res.status(201).json({
-    success: true, 
-    message: "API is working Now"
-  })
+try{
+const result = await pool.query(`INSERT INTO users(name, email, number, age) VALUES($1, $2, $3, $4) RETURNING *`, [name, email, number, age])
+return res.status(200).json({
+  success: true, 
+  message: "user created", 
+  data: result.rows
 })
+}catch(error: any){
+  return res.status(500).json({
+    success: false, 
+    message: "user not created", 
+    err: error
+  })
+}
+})
+
+app.get("/users", async(req: Request, res: Response) => {
+  try{
+    const result = await pool.query(`SELECT * FROM users`)
+    res.status(201).json({
+      success: true, 
+      message: "successfully used data find", 
+      data: result.rows
+    })
+  }catch(err: any){
+    res.status(500).json({
+      success: false, 
+      message: err.message, 
+    })
+  }
+})
+
+app.get("/users/:id", async(req: Request, res:Response) => {
+try{
+  const result = await pool.query(`SELECT * FROM users WHERE id = $1`, [req.params.id])
+
+  if(result.rows.length === 0){
+    res.status(404).json({
+      success: false,
+      message: "users not found"
+    })}else{
+      res.status(200).json({
+        success: true, 
+        message: "user fetched success", 
+        data : result.rows[0]
+      })
+    }
+}catch(err: any){
+  res.status(500).json({
+    success: false, 
+    message: err.message
+  })
+}
+})
+
+
 
 app.listen(port, () => {
   console.log(`I am running now ${port}`)
