@@ -1,4 +1,4 @@
-import express, {Request, Response} from "express"; 
+import express, {NextFunction, Request, Response} from "express"; 
 import {Pool} from "pg"; 
 import dotenv from "dotenv"; 
 import path from "path"; 
@@ -10,9 +10,6 @@ const port = 5000
 
 // body perser
 app.use(express.json())
-app.get('/', (req: Request, res: Response) => {
-  res.send('How Can I Help Your! could you please say. ')
-})
 
 //Database
 const pool = new Pool({
@@ -49,6 +46,16 @@ const initDB = async() => {
 
 initDB()
  
+// middle  
+const logger = (req:Request, res: Response, next: NextFunction) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}\n`);
+  next()
+}
+
+app.get("/", logger, (req: Request, res: Response) =>{
+  res.send("Hello kausar");
+})
+
 // users CRUD
 app.post("/users", async (req: Request, res: Response)=>{
 const {name, email, age, number} = req.body; 
@@ -138,7 +145,7 @@ app.delete("/users/:id", async(req:Request, res:Response) => {
   // console.log(req.params.id)
 try{
 const result = await pool.query(`DELETE FROM users WHERE id=$1`, [req.params.id]);
-if(result.rows.length !> 0){
+if(result.rowCount === 0){
   res.status(400).json({
     success: false, 
     message: "user not found"
@@ -146,7 +153,7 @@ if(result.rows.length !> 0){
 } else(
   res.status(200).json({
     success: true, 
-    message: "user successfully update", 
+    message: "user successfully delete", 
     data: null
   })
 )
@@ -156,6 +163,119 @@ if(result.rows.length !> 0){
     message: err.message
   })
 }
+ })
+
+// todos 
+app.post("/todos", async(req: Request, res: Response) => {
+  const {user_id, title} = req.body; 
+  try{
+const result = await pool.query(`INSERT INTO todos(user_id, title) VALUES($1, $2) RETURNING *`, [user_id, title]); 
+res.status(201).json({
+  success: true,
+  message: "todos succfully created", 
+  data: result.rows[0]
+})
+  }catch(error : any){
+    res.status(501).json({
+      success: false, 
+      message:"todos not created",
+      err: error.message
+    })
+  }
+})
+
+app.get("/todos", async(req: Request, res:Response) =>{
+  try{
+  const result = await pool.query(`SELECT * FROM todos`)
+res.status(200).json({
+  success: true, 
+  message: "todos successfully find", 
+data: result.rows[0]
+})
+  }catch(error:any){
+    res.status(500).json({
+      success: false, 
+      message: "todos not found",  
+    })
+  }
+})
+
+app.get("/todos/:id", async(req: Request, res: Response) => {
+  try{
+    const result = await pool.query(`SELECT * FROM todos WHERE id = $1`, [req.params.id])
+    res.status(201).json({
+      success: true, 
+      message: "successfully todo find",
+      data: result.rows[0]
+    })
+  }catch(error: any){
+    res.status(500).json({
+      success: false, 
+      message: "todo not found", 
+      error: error.message, 
+      err: error
+    })
+  }
+})
+
+
+app.put("/todos/:id", async(req:Request, res: Response) => {
+  const {user_id, title, description} = req.body; 
+  try{
+    const result = await pool.query(`UPDATE todos SET user_id=$1, title=$2, description=$3 WHERE id=$4 RETURNING *`, [user_id, title, description, req.params.id])
+    console.log(result);
+    if(result.rows.length === 0){
+      res.status(501).json({
+        success: false, 
+        message: "todos not found", 
+      })
+    }else{
+      res.status(200).json({
+        success: true, 
+        message: "todo successfully updatede", 
+        data: result.rows[0]
+      })
+    }
+  }catch(err: any){
+    res.status(500).json({
+      success:false, 
+      message: err.message
+
+    })
+  }
+})
+
+app.delete("/todos/:id", async(req:Request, res:Response) => {
+  try{
+    const result = await pool.query(`DELETE FROM todos WHERE id=$1`, [req.params.id]); 
+    // console.log(result);
+     if(result.rowCount === 1){
+      res.status(501).json({
+        success: false, 
+        message: "todos not found"
+      })
+     }else{
+      res.status(200).json({
+        success: true, 
+        message: "todo delete successfully delete", 
+        data: null
+      })
+     }
+  }catch(err:any){
+    res.status(500).json({
+      success: false,
+      message: err.messagge
+    })
+  }
+})
+
+// page not found
+app.use((req, res) => {
+  res.status(404).json({
+    success: false, 
+    message: "Route Not Found", 
+    Route: req.path,
+  })
 })
 
 app.listen(port, () => {
